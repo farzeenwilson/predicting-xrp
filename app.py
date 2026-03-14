@@ -18,7 +18,14 @@ and utilizes a Deep Learning **LSTM Neural Network** to predict tomorrow's closi
 #Caching function by 1 hour
 @st.cache_data(ttl=3600)
 def load_data():
-    xrp = yf.download('XRP-USD', period='5y')[['Close', 'Volume']]
+    xrp_data = yf.Ticker('XRP-USD')
+    xrp = xrp_data.history(period='5y')[['Close', 'Volume']]
+    
+    #Error message if Yahoo temporarily blocks the cloud server
+    if xrp.empty:
+        st.error("Yahoo Finance API is currently unavailable. Please refresh in a few minutes.")
+        st.stop()
+        
     xrp.columns = ['XRP_Close', 'XRP_Volume']
     
     #feature engineering-moving averages & MACD
