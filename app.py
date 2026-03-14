@@ -8,8 +8,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 
 #Configure app page
-st.set_page_config(page_title="XRP Price Predictor", page_icon="📈", layout="wide")
-st.title("📈 Ripple (XRP) Price Predictor")
+st.set_page_config(page_title="Predicting XRP Pride", page_icon="📈", layout="wide")
+st.title("Predicting Ripple (XRP) Price")
 st.markdown("""
 This dashboard pulls the latest data for **Ripple (XRP)**, calculates key technical indicators, 
 and utilizes a Deep Learning **LSTM Neural Network** to predict tomorrow's closing price.
@@ -18,9 +18,19 @@ and utilizes a Deep Learning **LSTM Neural Network** to predict tomorrow's closi
 #cache function for 1 hour
 @st.cache_data(ttl=3600)
 def load_data():
-    #live data
-    xrp = yf.download('XRP-USD', period='5y')[['Close', 'Volume']]
-    xrp.columns = ['XRP_Close', 'XRP_Volume']
+    #fetching price for Ripple, Bitcoin, and S&P500
+    xrp = yf.download('XRP-USD', period='5y')[['Close']]
+    btc = yf.download('BTC-USD', period='5y')[['Close']]
+    sp500 = yf.download('^GSPC', period='5y')[['Close']]
+    
+    #mergeing columns
+    combined = xrp.rename(columns={'Close': 'XRP'})
+    combined['BTC'] = btc['Close']
+    combined['SP500'] = sp500['Close']
+
+    #forwardfill weekends for S&P 500
+    combined = combined.ffill().dropna()
+    return combined
     
     #feature engineering -moving avareages and MACD
     xrp['SMA_7'] = xrp['XRP_Close'].rolling(window=7).mean()
@@ -73,6 +83,26 @@ with st.spinner('Fetching live market data and updating model...'):
     tomorrow_prediction = train_and_predict(df)
 
 #configuring UI interactivity
+# Sidebar Toggles
+st.sidebar.header("Market Correlation")
+show_btc = st.sidebar.checkbox("Compare with Bitcoin", value=False)
+show_sp500 = st.sidebar.checkbox("Compare with S&P 500", value=False)
+
+# Chart logic
+fig = go.Figure()
+
+#X RP always showing
+fig.add_trace(go.Scatter(x=df_display.index, y=df_display['XRP'], name='XRP Price', line=dict(color='black', width=2)))
+
+if show_btc:
+    #show secondary Y-axis
+    btc_norm = df_display['BTC'] / df_display['BTC'].iloc[0] * df_display['XRP'].iloc[0]
+    fig.add_trace(go.Scatter(x=df_display.index, y=btc_norm, name='BTC (Scaled)', line=dict(color='orange', dash='dash')))
+
+if show_sp500:
+    sp_norm = df_display['SP500'] / df_display['SP500'].iloc[0] * df_display['XRP'].iloc[0]
+    fig.add_trace(go.Scatter(x=df_display.index, y=sp_norm, name='S&P 500 (Scaled)', line=dict(color='green', dash='dash')))
+
 st.sidebar.header("Chart Controls")
 show_sma7 = st.sidebar.checkbox("Show 7-Day SMA", value=True)
 show_sma30 = st.sidebar.checkbox("Show 30-Day SMA", value=False)
@@ -86,12 +116,10 @@ current_price = df['XRP_Close'].iloc[-1]
 price_diff = tomorrow_prediction - current_price
 
 st.metric(
-    label="🔮 Tomorrow's Predicted Price (LSTM)", 
+    label="Tomorrow's Predicted Price (LSTM)", 
     value=f"${tomorrow_prediction:.4f}", 
     delta=f"${price_diff:.4f} from today's close"
 )
-
-fig = go.Figure()
 
 #actual rpice
 fig.add_trace(go.Scatter(x=df_display.index, y=df_display['XRP_Close'], mode='lines', name='Actual Price', line=dict(color='black', width=2)))
