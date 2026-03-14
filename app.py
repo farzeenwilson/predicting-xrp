@@ -95,8 +95,10 @@ days_to_show = st.sidebar.slider("Days of History to Display", min_value=30, max
 #filtering dataframe on slider
 df_display = df.tail(days_to_show)
 
-#displaying prediction metric
-current_price = df['XRP_Close'].iloc[-1]
+# displaying prediction metric
+#forcing values into standard floats to by pass yfinance MultiIndex formatting errors
+current_price = float(df['XRP_Close'].values.flatten()[-1])
+tomorrow_prediction = float(tomorrow_prediction)
 price_diff = tomorrow_prediction - current_price
 
 st.metric(
